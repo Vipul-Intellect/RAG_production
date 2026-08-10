@@ -201,7 +201,7 @@ def enrich_metadata(
                 "loader_used": loader_name,
                 "document_type": document_type,
                 "domain": domain,
-                "checksum": checksum,
+                "document_checksum": checksum,
                 "ingested_at": ingested_at,
             }
         )
