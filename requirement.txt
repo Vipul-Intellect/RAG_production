@@ -10,3 +10,4 @@ faiss-cpu
 chromadb
 langchain-groq
 python-dotenv
+qdrant-client

@@ -1,0 +1,437 @@
+Chunking ✅
+   ↓
+1. Embedding contract/design
+   ↓
+2. Model setup
+   ↓
+3. Parent + Child embedding generation
+   ↓
+4. Metadata / identity preservation
+   ↓
+5. Fault isolation + failure handling
+   ↓
+6. Embedding logging + metrics
+   ↓
+7. Unit tests
+   ↓
+8. Integration / golden verification
+   ↓
+Qdrant Storage
+
+subphase 1:
+You are acting as a Senior AI Engineer working on a production-oriented RAG ingestion pipeline.
+
+Implement ONLY Embeddings Sub-phase 1: the Embedding contract, model wrapper, and public phase entry point.
+
+PROJECT ARCHITECTURE ALREADY LOCKED:
+Loading
+  └── load_documents(...)
+        ↓
+Chunking
+  └── create_parent_child_chunks(...)
+        ↓
+Embedding
+  └── embed_chunks(...)
+        ↓
+Storage / Qdrant
+        ↓
+Retrieval / Generation
+
+Loading and Chunking are already implemented and tested. DO NOT modify them.
+
+CURRENT CHUNKING CONTRACT:
+- Chunking returns list[ChunkGroup].
+- Each ChunkGroup contains:
+    parent: Document
+    children: list[Document]
+- Parent/child metadata already includes document_id, document_checksum,
+  parent_id, child_id, parent_index, child_index, parent_checksum,
+  child_checksum, chunking_config_hash, and existing loading metadata.
+- parent_id and child_id are runtime/relationship identifiers.
+- Do NOT redesign their generation.
+- chunking_config_hash is the deterministic SHA-256 fingerprint of the
+  actual chunking configuration and must be preserved unchanged.
+
+EMBEDDING DECISIONS:
+- Model: BAAI/bge-small-en-v1.5
+- Dimension: 384
+- Local inference only; no OpenAI/Groq/API embedding service.
+- Parent and Child chunks will both be embedded in a later sub-phase.
+- The model must be loaded once and reused; never reload it for every chunk.
+- Embedding must ADD vectors without destroying or rebuilding existing metadata.
+
+PUBLIC PHASE CONTRACT:
+Create ONE public function for the Embedding phase following the existing
+Loading/Chunking architecture:
+
+    embed_chunks(...)
+
+The orchestrator must call this public function rather than directly
+calling model.encode() or any internal model implementation.
+
+Keep the public interface clean and suitable for Sub-phase 2, where actual
+Parent + Child ChunkGroup embedding will be implemented.
+
+IMPORTANT FUTURE ARCHITECTURE — DO NOT IMPLEMENT YET:
+- One Qdrant instance.
+- Two collections: parent_chunks and child_chunks.
+- Parent and Child vectors will both be stored later.
+- Deterministic Qdrant point IDs will be designed in Storage.
+- document_id is the stable logical-document identity.
+- document_checksum identifies source-document content.
+- chunking_config_hash identifies the chunking configuration.
+- parent_id/child_id must NOT be used as the deterministic Qdrant storage
+  identity because they may change during re-chunking.
+- Re-ingestion will use ACTIVE/INACTIVE generations.
+- Do NOT implement any Qdrant or Storage code in this sub-phase.
+
+REQUIREMENTS:
+1. Create a small, production-readable embedding component/wrapper.
+2. Load BAAI/bge-small-en-v1.5 once per model instance/process.
+3. Expose model name and expected dimension.
+4. Provide a clean method for generating an embedding from text.
+5. Validate that the returned vector has exactly 384 dimensions.
+6. Return numeric vector data in a form that can be used by the later
+   Parent/Child embedding pipeline and Qdrant.
+7. Preserve the existing Document metadata contract.
+8. Do not change ChunkGroup, Loading, or Chunking.
+9. Do not add Qdrant, Storage, Retrieval, Groq, LLM, or API code.
+10. Do not add another embedding model.
+11. Do not introduce unnecessary abstraction layers.
+12. Do not change existing chunk sizes, overlaps, checksums, IDs, logging,
+    fault-isolation behavior, or return structures outside the new
+    Embedding module.
+13. Keep the implementation easy to extend in Sub-phase 2.
+
+TESTS:
+Add focused unit tests for this sub-phase covering:
+- model initialization succeeds;
+- correct model name;
+- expected dimension is 384;
+- generated embedding has exactly 384 values;
+- embedding values are numeric;
+- repeated embedding calls reuse the already-loaded model rather than
+  recreating it;
+- the public embedding function exists with the intended contract.
+
+Do NOT write tests for Qdrant or full Parent/Child ingestion yet.
+
+QUALITY / SAFETY CONSTRAINTS:
+- Do not fabricate metadata or IDs.
+- Do not log chunk text or embedding vectors.
+- Use real identifiers only when available.
+- Keep failures explicit and debuggable.
+- Follow the project's existing logging and code style where applicable.
+- Do not silently swallow exceptions.
+- Make the smallest change necessary.
+- Do not refactor unrelated code.
+- Do not redesign the architecture.
+
+FUTURE COMPATIBILITY:
+The next sub-phase will connect embed_chunks(...) to the existing
+list[ChunkGroup] output and generate embeddings for both parents and
+children while preserving all metadata and parent-child relationships.
+
+Therefore, design the public interface now so Sub-phase 2 can be added
+without changing the public API.
+
+After implementation:
+1. Run the focused Embedding Sub-phase 1 tests.
+2. Run the existing Chunking/fault-isolation tests to confirm no regression.
+3. Report:
+   - exact files changed;
+   - what was implemented;
+   - tests executed;
+   - exact test results.
+4. Do not proceed to Sub-phase 2 unless explicitly instructed.
+
+MOST IMPORTANT:
+Do not redesign or "improve" other phases.
+Do not implement future Storage/Qdrant functionality.
+Do not remove existing functionality.
+Make only the smallest clean change required for Embeddings Sub-phase 1.
+
+subphase2:
+You are acting as a Senior AI Engineer working on a production-oriented RAG ingestion pipeline.
+
+Implement ONLY Embeddings Sub-phase 2: actual Parent + Child embedding generation.
+
+ARCHITECTURE IS LOCKED:
+
+Loading
+  ↓
+load_documents(...)
+  ↓
+Chunking
+  ↓
+create_parent_child_chunks(...)
+  ↓
+Embedding
+  ↓
+embed_chunks(...)
+  ↓
+Storage / Qdrant
+  ↓
+Retrieval / Generation
+
+Do NOT redesign this architecture.
+
+CURRENT EMBEDDING DECISIONS:
+- Model: BAAI/bge-small-en-v1.5
+- Dimension: 384
+- Local inference only
+- normalize_embeddings=True
+- BGEEmbeddingModel already exists from Sub-phase 1.
+- Public Embedding entry point is embed_chunks(...).
+- Parent and Child chunks must both be embedded.
+- Qdrant/Storage is a future phase.
+
+INPUT:
+embed_chunks(...) receives the existing:
+    list[ChunkGroup]
+
+Each ChunkGroup contains:
+    parent: Document
+    children: list[Document]
+
+REQUIREMENTS:
+
+1. Generate a 384-dimensional embedding from ONLY:
+       Document.page_content
+
+   Do NOT embed metadata.
+
+2. Generate one embedding for every Parent.
+
+3. Generate one embedding for every Child.
+
+4. Preserve the complete existing metadata of every Document.
+   Do not delete, rename, overwrite, fabricate, or reconstruct metadata.
+
+   Important metadata includes, where already present:
+   - document_id
+   - document_checksum
+   - source_file
+   - source_path
+   - domain
+   - document_type
+   - loader_used
+   - page_number
+   - character_count
+   - is_empty_page
+   - ingested_at
+   - parent_id
+   - parent_index
+   - parent_checksum
+   - child_id
+   - child_index
+   - child_checksum
+   - chunking_config_hash
+   - page_start
+   - page_end
+   - status
+   - version
+   - updated_at
+   - indexed_at
+
+   Do not add new filtering logic in this phase.
+   These metadata fields will later be stored as Qdrant payload by Storage.
+
+5. Preserve the Parent → Child relationship exactly.
+   child.parent_id must continue to identify its parent.
+
+6. The resulting embedding output must make both:
+       Document + embedding
+   available to the later Storage phase.
+
+   Do not put the embedding inside Document.metadata unless that is
+   already the established project design. Keep vector data separate
+   from metadata so Storage can later create:
+       Qdrant point = point_id + vector + payload(metadata)
+
+7. Reuse the supplied BGEEmbeddingModel when one is passed to
+   embed_chunks(...).
+   Do not create/load another model for every chunk.
+
+8. Do not modify:
+   - Loading
+   - Chunking
+   - ChunkGroup
+   - parent_id/child_id generation
+   - document checksums
+   - parent/child checksums
+   - chunking_config_hash
+   - chunk sizes/overlaps
+   - existing lifecycle fields
+   - existing logging architecture
+
+9. Do NOT implement:
+   - Qdrant
+   - Storage
+   - Retrieval
+   - metadata filtering
+   - Groq/LLM calls
+   - deterministic Qdrant Point IDs
+   - ACTIVE/INACTIVE generation transitions
+
+   Those belong to later phases.
+
+FAULT ISOLATION:
+10. Treat each Parent + all of its Children as one embedding group.
+
+11. If the Parent or any Child in a group fails to embed:
+    - do not return an incomplete group;
+    - log the failure without logging page content or vector values;
+    - continue processing independent groups;
+    - do not silently swallow unexpected errors.
+
+12. Successful independent groups must still be returned.
+
+OUTPUT CONTRACT:
+13. Keep the public function:
+       embed_chunks(...)
+
+14. Return a structure that preserves the existing Parent/Child hierarchy
+    and provides the generated embeddings separately from metadata.
+
+15. Do not change the existing ChunkGroup contract unless absolutely
+    necessary. If an embedding result structure is required, introduce
+    the smallest clean structure needed for the later Storage phase.
+
+TESTS:
+Add focused unit tests proving:
+
+- Parent receives a 384D embedding.
+- Every Child receives a 384D embedding.
+- Parent metadata is preserved exactly.
+- Child metadata is preserved exactly.
+- parent_id relationship is preserved.
+- child_id is preserved.
+- document_checksum is preserved.
+- parent_checksum/child_checksum are preserved.
+- chunking_config_hash is preserved.
+- Multiple children are handled correctly.
+- A failed child does not produce an incomplete group.
+- A failed group does not stop another independent group.
+- The supplied BGEEmbeddingModel is reused.
+- No metadata is passed as embedding input.
+
+QUALITY CONSTRAINTS:
+- Smallest clean implementation.
+- Production-readable code.
+- No unnecessary abstractions.
+- No unrelated refactoring.
+- No hallucinated metadata.
+- No chunk text or vectors in logs.
+- Follow existing project naming, typing, logging, and test conventions.
+- Do not change previous phases to make this work.
+
+After implementation:
+1. Run the focused Embedding tests.
+2. Run the existing fault-isolation tests:
+       uv run python -m unittest tests.unit.test_fault_isolation
+3. Report:
+   - exact files changed;
+   - implementation summary;
+   - tests executed;
+   - exact results.
+
+STOP after Embeddings Sub-phase 2.
+Do not implement Storage/Qdrant.
+
+You are acting as a Senior AI Engineer working on a production-oriented RAG ingestion pipeline.
+
+Implement ONLY the Embedding Logging + Metrics sub-phase.
+
+ARCHITECTURE IS LOCKED:
+Loading → Chunking → Embedding → Storage/Qdrant → Retrieval → Generation
+
+Do not modify Loading, Chunking, Storage, Qdrant, Retrieval, or Generation.
+
+CURRENT EMBEDDING IMPLEMENTATION:
+- Model: BAAI/bge-small-en-v1.5
+- Dimension: 384
+- Local SentenceTransformer inference
+- normalize_embeddings=True
+- Public function: embed_chunks(...)
+- Parent + Child embeddings are already implemented.
+- Parent/Child fault isolation is already implemented and tested.
+- Metadata is preserved in the original Document objects.
+- Do not redesign the embedding implementation.
+
+TASK:
+Add clear embedding-phase observability and final statistics.
+
+The Embedding phase must record/log:
+
+1. Parent chunks received
+2. Parent chunks successfully embedded
+3. Child chunks received
+4. Child chunks successfully embedded
+5. Failed Parent/Child groups
+6. Embedding model name
+7. Embedding dimension
+8. Total embedding-phase duration
+
+IMPORTANT:
+- "received" means the number of Parent/Child chunks entering embed_chunks(...).
+- "embedded" means successfully generated and accepted 384D vectors.
+- A group is failed when its Parent or any Child fails.
+- Do not count a failed Parent/Child group's partial embeddings as successfully
+  embedded if the group is rejected.
+- Do not log chunk page_content.
+- Do not log embedding vectors.
+- Do not fabricate counts.
+- Use the existing logger and logging style.
+- Use perf_counter() for duration, consistent with the existing Chunking phase.
+- Keep logging structured and easy to read.
+
+FINAL STATISTICS SHOULD CLEARLY REPORT:
+parents_received=...
+parents_embedded=...
+children_received=...
+children_embedded=...
+failed_groups=...
+model_name=BAAI/bge-small-en-v1.5
+dimension=384
+duration=...s
+
+Also keep the existing configuration log:
+model_name
+expected_dimension
+
+Do NOT add metadata filtering here.
+Do NOT add Qdrant.
+Do NOT add Storage.
+Do NOT add Retrieval or Generation logic.
+
+TESTS:
+Add/update focused tests proving:
+- parent received count is correct;
+- parent embedded count is correct;
+- child received count is correct;
+- child embedded count is correct;
+- failed group count is correct;
+- model name is logged/reported correctly;
+- dimension is reported as 384;
+- duration is recorded as a non-negative numeric value;
+- a failed group does not incorrectly increase successful embedded counts;
+- existing fault isolation behavior remains unchanged.
+
+Do not redesign the return structure unless absolutely necessary.
+Do not modify existing metadata, IDs, checksums, chunking_config_hash,
+ChunkGroup, or BGE model behavior.
+
+Run:
+    uv run python -m unittest tests.unit.test_embeddings
+
+Then:
+    uv run python -m unittest tests.unit.test_fault_isolation
+
+Report:
+- exact files changed;
+- metrics/logging added;
+- exact test results.
+
+STOP after this sub-phase.
+Do not proceed to Qdrant Storage.

@@ -1,0 +1,815 @@
+You are acting as a Senior AI Engineer implementing the next phase of a
+production-oriented RAG ingestion pipeline.
+
+TASK:
+Implement ONLY Qdrant Storage Sub-phase 4:
+Re-ingestion + Generation Lifecycle + ACTIVE/INACTIVE + required logging.
+
+DO NOT redesign the existing architecture.
+
+==================================================
+CURRENT LOCKED ARCHITECTURE
+==================================================
+
+Loading
+→ Chunking
+→ Embedding
+→ Qdrant Storage
+→ Retrieval
+→ Generation
+
+Already completed:
+
+Q1:
+- Qdrant Cloud connection
+- environment-based credentials
+
+Q2:
+- parent_chunks collection
+- child_chunks collection
+- 384 dimensions
+- COSINE distance
+
+Q3:
+- Parent + Child vectors stored separately
+- metadata stored in payload
+- Parent content stored once in parent payload
+- Child stores parent_id relationship
+- deterministic UUID5 Point IDs
+- Qdrant upsert
+
+Do NOT modify Q1/Q2/Q3 unless a real compatibility issue is discovered.
+
+==================================================
+LOCKED POINT-ID FORMULAS
+==================================================
+
+Parent:
+
+UUID5(
+    namespace,
+    "parent:"
+    + document_id
+    + ":"
+    + document_checksum
+    + ":"
+    + chunking_config_hash
+    + ":"
+    + parent_index
+)
+
+Child:
+
+UUID5(
+    namespace,
+    "child:"
+    + document_id
+    + ":"
+    + document_checksum
+    + ":"
+    + chunking_config_hash
+    + ":"
+    + parent_index
+    + ":"
+    + child_index
+)
+
+DO NOT change these formulas.
+
+DO NOT use parent_id or child_id in Point IDs.
+
+==================================================
+GENERATION IDENTITY
+==================================================
+
+A logical indexing generation is determined by the document identity plus
+the exact chunking configuration used to create its chunks.
+
+For this project, the generation identity is represented by:
+
+    document_id
+    document_checksum
+    chunking_config_hash
+
+Do not introduce a separate database or generation table.
+
+Do not create an unnecessary generation UUID.
+
+The deterministic Point IDs already encode the generation identity.
+
+==================================================
+VERY IMPORTANT: HASH SEMANTICS
+==================================================
+
+document_checksum represents the source document content.
+
+chunking_config_hash represents the actual chunking configuration.
+
+Our existing chunking_config_hash is calculated from:
+
+    splitter
+    parent_chunk_size
+    parent_chunk_overlap
+    child_chunk_size
+    child_chunk_overlap
+
+Therefore:
+
+1. If document content changes:
+       document_checksum changes
+       chunking_config_hash stays the same
+       → NEW generation
+
+2. If chunking configuration changes:
+       document_checksum stays the same
+       chunking_config_hash changes
+       → NEW generation
+
+3. If both change:
+       both values change
+       → NEW generation
+
+4. If neither changes:
+       same generation
+
+Do NOT increment chunking_config_hash manually.
+It is a deterministic SHA-256 configuration fingerprint.
+
+==================================================
+GENERATION LIFECYCLE
+==================================================
+
+We maintain the Parent and Child points for generations in Qdrant.
+
+Example:
+
+Generation 1:
+
+    document_id = D1
+    document_checksum = A
+    chunking_config_hash = X
+
+    Parent + Child points
+    status = ACTIVE
+
+When the same logical document is re-ingested with changed content:
+
+Generation 2:
+
+    document_id = D1
+    document_checksum = B
+    chunking_config_hash = X
+
+    New Point IDs are produced automatically.
+
+The old generation must NOT be made INACTIVE before the new generation
+has been successfully stored.
+
+Required sequence:
+
+    OLD GENERATION
+        ↓
+      ACTIVE
+
+    NEW GENERATION
+        ↓
+    build Parent + Child points
+        ↓
+    successfully upsert ALL required points
+        ↓
+    verify successful storage
+        ↓
+    NEW GENERATION → ACTIVE
+    OLD GENERATION → INACTIVE
+
+If the new generation fails:
+
+    OLD GENERATION remains ACTIVE.
+
+Do NOT leave the system with no active generation because a new ingestion
+failed.
+
+==================================================
+SAME GENERATION / IDEMPOTENT RE-INGESTION
+==================================================
+
+If the same corpus is ingested again with:
+
+    same document_id
+    same document_checksum
+    same chunking_config_hash
+    same parent/child indexes
+
+then the deterministic Point IDs are identical.
+
+Qdrant upsert must update/overwrite those existing points rather than
+creating duplicate points.
+
+This is expected Qdrant behavior.
+
+Do NOT delete and recreate points just to achieve idempotency.
+
+The required evidence must be:
+
+    Before ingestion:
+        parent vector count = X
+        child vector count = Y
+
+    Run the exact same ingestion again.
+
+    After ingestion:
+        parent vector count = X
+        child vector count = Y
+
+The counts must remain unchanged.
+
+==================================================
+STATUS
+==================================================
+
+Use the existing payload field:
+
+    status
+
+Valid lifecycle values for this phase:
+
+    ACTIVE
+    INACTIVE
+
+Do not introduce unnecessary additional lifecycle states.
+
+A current successful generation is:
+
+    ACTIVE
+
+An old superseded generation is:
+
+    INACTIVE
+
+The Retrieval phase will later filter:
+
+    status == ACTIVE
+
+Do NOT implement similarity search in this phase.
+
+==================================================
+SAFE ACTIVATION
+==================================================
+
+The implementation must NOT deactivate the old generation before the new
+generation is known to be successfully stored.
+
+For a successful replacement:
+
+    1. identify old active generation
+    2. create/store new Parent points
+    3. create/store new Child points
+    4. verify the required new points were stored
+    5. mark new generation ACTIVE
+    6. mark old generation INACTIVE
+
+If any required storage step fails:
+
+    old generation remains ACTIVE.
+
+Do not implement a complicated distributed transaction system.
+
+Keep the implementation minimal and reliable for this project.
+
+==================================================
+METADATA
+==================================================
+
+Do not change the existing metadata contract.
+
+Continue preserving:
+
+    document_id
+    document_checksum
+    parent_id
+    parent_index
+    parent_checksum
+    child_id
+    child_index
+    child_checksum
+    chunking_config_hash
+    status
+    version
+    updated_at
+    indexed_at
+    source/page metadata
+    other existing metadata
+
+Do not fabricate metadata.
+
+==================================================
+LOGGING
+==================================================
+
+Add concise storage/re-ingestion logs.
+
+Log:
+
+    document_id
+    generation identity
+    parents received/stored
+    children received/stored
+    whether this is an existing or new generation
+    lifecycle transition
+    success/failure
+    duration
+
+For idempotency verification, provide enough information to show:
+
+    before parent count
+    before child count
+    after parent count
+    after child count
+
+Do NOT log:
+
+    API keys
+    embedding vectors
+    full document content
+    full chunk content
+
+Use the existing project logger and logging conventions.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+If a new generation fails during storage:
+
+    - log the failure
+    - do not mark the new generation ACTIVE
+    - do not mark the old ACTIVE generation INACTIVE
+
+If no previous ACTIVE generation exists, a successful first ingestion may
+become ACTIVE.
+
+Do not silently swallow storage failures.
+
+==================================================
+TESTS
+==================================================
+
+Add focused tests for:
+
+1. First successful ingestion creates an ACTIVE generation.
+
+2. Same document + same checksum + same chunking_config_hash:
+       produces the same Point IDs.
+
+3. Re-running the same ingestion does not increase the number of stored
+   logical Parent or Child points.
+
+4. Document checksum changes:
+       creates a new generation.
+
+5. Chunking configuration hash changes:
+       creates a new generation.
+
+6. Same document checksum but changed chunking_config_hash must create
+   different Point IDs.
+
+7. Successful new generation:
+       new generation becomes ACTIVE
+       old generation becomes INACTIVE.
+
+8. Failed new generation:
+       old generation remains ACTIVE.
+
+9. Parent and Child lifecycle state remains consistent.
+
+10. ACTIVE/INACTIVE transitions are logged without exposing content,
+    vectors, or secrets.
+
+11. Generation identity is deterministic.
+
+12. Existing metadata is preserved.
+
+Use mocks/fakes for Qdrant where appropriate.
+
+Do not require real Qdrant credentials for unit tests.
+
+==================================================
+IMPORTANT SCOPE LIMIT
+==================================================
+
+DO NOT implement:
+
+- similarity search
+- top-k retrieval
+- query embeddings
+- metadata filtering/search
+- reranking
+- Groq
+- evaluation
+- LLM generation
+
+Those belong to later phases.
+
+Do NOT introduce SQLite or another database.
+
+==================================================
+VALIDATION / REPORT
+==================================================
+
+Run the relevant existing tests plus the new Q4 tests.
+
+Report:
+
+1. Files changed.
+2. Re-ingestion behavior implemented.
+3. Generation identity used.
+4. ACTIVE/INACTIVE lifecycle implemented.
+5. Idempotency verification.
+6. Tests run.
+7. Exact test results.
+8. Any limitation.
+
+STOP after Q4.
+Do not proceed to Retrieval.
+
+
+You are a Senior AI Engineer. Modify ONLY the existing Qdrant generation
+lifecycle implementation in:
+
+    rag_app/storage/qdrant_storage.py
+
+Do NOT redesign the architecture.
+
+CURRENT LOCKED ARCHITECTURE:
+    New generation
+        ↓
+    stage Parent + Child as INACTIVE
+        ↓
+    upsert both
+        ↓
+    verify both
+        ↓
+    activate new generation
+        ↓
+    deactivate old generation
+
+The existing deterministic Parent/Child Point-ID formulas are LOCKED.
+Do NOT change them.
+
+Parent Point ID:
+
+UUID5(
+    namespace,
+    "parent:"
+    + document_id
+    + ":"
+    + document_checksum
+    + ":"
+    + chunking_config_hash
+    + ":"
+    + parent_index
+)
+
+Child Point ID:
+
+UUID5(
+    namespace,
+    "child:"
+    + document_id
+    + ":"
+    + document_checksum
+    + ":"
+    + chunking_config_hash
+    + ":"
+    + parent_index
+    + ":"
+    + child_index
+)
+
+==================================================
+PROBLEM TO FIX
+==================================================
+
+The current implementation does:
+
+    new generation → ACTIVE
+    old generation → INACTIVE
+
+using separate Qdrant operations.
+
+If activation succeeds but old-generation deactivation fails, the system
+can temporarily leave BOTH generations ACTIVE.
+
+Fix this failure path completely.
+
+==================================================
+REQUIRED LIFECYCLE GUARANTEE
+==================================================
+
+For a NEW generation replacing an OLD generation:
+
+    OLD = ACTIVE
+    NEW = INACTIVE
+
+Required normal path:
+
+    1. Upsert NEW Parent points as INACTIVE.
+    2. Upsert NEW Child points as INACTIVE.
+    3. Verify ALL NEW Parent points exist.
+    4. Verify ALL NEW Child points exist.
+    5. Activate NEW Parent points.
+    6. Activate NEW Child points.
+    7. Deactivate OLD Parent points.
+    8. Deactivate OLD Child points.
+
+The OLD generation must NOT be deactivated before NEW storage and
+verification succeed.
+
+==================================================
+FAILURE SAFETY
+==================================================
+
+Handle every failure after NEW activation explicitly.
+
+Case A:
+
+    NEW upsert fails
+        ↓
+    NEW remains INACTIVE
+    OLD remains ACTIVE
+
+Case B:
+
+    NEW verification fails
+        ↓
+    NEW remains INACTIVE
+    OLD remains ACTIVE
+
+Case C:
+
+    NEW activation partially succeeds
+        ↓
+    restore all NEW points to INACTIVE
+    OLD remains ACTIVE
+
+Case D:
+
+    NEW becomes ACTIVE successfully
+    OLD deactivation fails
+        ↓
+    attempt to restore NEW generation to INACTIVE
+    attempt to restore/keep OLD generation ACTIVE
+    raise the original lifecycle failure
+
+The implementation must make a best-effort recovery rather than silently
+leaving the system in an ambiguous lifecycle state.
+
+IMPORTANT:
+Do not claim transactional/atomic behavior from Qdrant. These are separate
+operations. Implement explicit compensation/recovery logic instead.
+
+==================================================
+SAFE FIRST INGESTION
+==================================================
+
+If no previous ACTIVE generation exists:
+
+    NEW is staged INACTIVE
+    NEW is stored
+    NEW is verified
+    NEW becomes ACTIVE
+
+There is no OLD generation to deactivate.
+
+==================================================
+SAME-GENERATION RE-INGESTION
+==================================================
+
+Do NOT treat identical re-ingestion as a new logical generation.
+
+If:
+
+    same document_id
+    same document_checksum
+    same chunking_config_hash
+    same parent/child indexes
+
+then deterministic Point IDs remain identical.
+
+Qdrant upsert updates those existing points.
+
+Do not create duplicate Point IDs.
+
+Do not unnecessarily create an old/new generation transition for the
+identical generation.
+
+The before/after vector counts must remain unchanged.
+
+==================================================
+GENERATION IDENTIFICATION
+==================================================
+
+Keep the existing generation identity:
+
+    document_id
+    document_checksum
+    chunking_config_hash
+
+When locating OLD active points, use:
+
+    document_id == current document_id
+    AND status == ACTIVE
+
+Then exclude points belonging to the current generation.
+
+Do not affect unrelated documents.
+
+Do not affect unrelated generations.
+
+==================================================
+PARENT / CHILD CONSISTENCY
+==================================================
+
+Parent and Child lifecycle state must remain consistent.
+
+For a successful replacement:
+
+    NEW Parent = ACTIVE
+    NEW Child  = ACTIVE
+
+    OLD Parent = INACTIVE
+    OLD Child  = INACTIVE
+
+For a failed replacement:
+
+    OLD Parent = ACTIVE
+    OLD Child  = ACTIVE
+
+Do not silently leave one side of an old generation ACTIVE and the other
+side INACTIVE.
+
+==================================================
+IMPORTANT IMPLEMENTATION DETAIL
+==================================================
+
+Before changing any status, keep the complete lists of:
+
+    new_parent_point_ids
+    new_child_point_ids
+    old_parent_point_ids
+    old_child_point_ids
+
+Use these exact IDs for status transitions.
+
+Do not perform a broad update such as:
+
+    status = INACTIVE
+    filter = document_id
+
+because that could affect unrelated generations.
+
+==================================================
+RECOVERY HELPERS
+==================================================
+
+If useful, introduce small private helpers such as:
+
+    _set_point_status(...)
+    _restore_generation_status(...)
+    _activate_generation(...)
+    _deactivate_generation(...)
+
+Keep them minimal.
+
+Do not introduce:
+    SQLite
+    Redis
+    another database
+    distributed transaction framework
+    unnecessary abstraction
+
+==================================================
+LOGGING
+==================================================
+
+Use the existing logger.
+
+Log lifecycle transitions such as:
+
+    generation staged INACTIVE
+    generation verified
+    generation activated
+    old generation deactivated
+    lifecycle recovery attempted
+    lifecycle recovery succeeded/failed
+
+Include safe identifiers such as:
+
+    document_id
+    generation identity
+    point counts
+    status transition
+    duration
+
+Never log:
+
+    API keys
+    vectors
+    full document content
+    full chunk content
+
+==================================================
+TESTS — REQUIRED
+==================================================
+
+Update/add focused unit tests.
+
+Test at minimum:
+
+1. First ingestion:
+       NEW → ACTIVE
+
+2. Successful replacement:
+       NEW → ACTIVE
+       OLD → INACTIVE
+
+3. NEW Parent upsert failure:
+       OLD remains ACTIVE
+
+4. NEW Child upsert failure:
+       OLD remains ACTIVE
+
+5. NEW verification failure:
+       OLD remains ACTIVE
+
+6. NEW activation failure:
+       NEW is restored to INACTIVE
+       OLD remains ACTIVE
+
+7. OLD deactivation failure:
+       recovery is attempted
+       NEW is restored to INACTIVE where possible
+       OLD is kept ACTIVE where possible
+       failure is raised
+
+8. Parent and Child lifecycle transitions remain consistent.
+
+9. Unrelated documents/generations are never modified.
+
+10. Same-generation re-ingestion:
+       same Point IDs
+       no duplicate stored points
+       counts unchanged
+
+11. Point-ID formulas remain unchanged.
+
+12. Existing metadata remains unchanged except for the intended
+    `status` transition.
+
+13. Failure logs do not expose vectors, document content, or secrets.
+
+Use mocked Qdrant clients for unit tests.
+
+Do NOT require live Qdrant credentials.
+
+==================================================
+IMPORTANT SCOPE
+==================================================
+
+Do NOT implement Retrieval.
+
+Do NOT implement similarity search.
+
+Do NOT implement query embeddings.
+
+Do NOT implement metadata filtering for Retrieval.
+
+Do NOT modify the embedding phase.
+
+Do NOT modify the deterministic Point-ID formulas.
+
+Do NOT modify the collection definitions.
+
+This task is ONLY to make the existing generation lifecycle
+failure-safe and test it thoroughly.
+
+==================================================
+VALIDATION
+==================================================
+
+Run:
+
+    uv run python -m unittest tests.unit.test_qdrant_storage
+
+and all existing relevant Qdrant tests.
+
+Report:
+
+- files changed
+- lifecycle behavior
+- recovery behavior
+- tests executed
+- exact test results
+- any remaining limitation
+
+STOP after this task.

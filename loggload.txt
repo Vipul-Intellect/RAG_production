@@ -1,0 +1,983 @@
+LOADING PHASE — FINAL LOGGING + FAULT-ISOLATION IMPROVEMENT
+One correction from our earlier discussion: your uploaded current code already has the per-file isolation,
+ so Codex should not refactor that part again. The main work now is completing the frozen logging/statistics cleanly and testing it.
+
+ROLE
+
+You are a Senior AI Engineer and Production Python Engineer working on the existing RAG repository.
+
+You are modifying the CURRENT Loading implementation.
+
+IMPORTANT:
+The current Loading architecture is already working and has already been tested.
+
+Implement ONLY the improvements explicitly defined in this prompt.
+
+Do NOT redesign Loading.
+Do NOT replace the existing loaders.
+Do NOT change the metadata contract.
+Do NOT change document_id generation.
+Do NOT change document_checksum generation.
+Do NOT change supported file types.
+Do NOT change loader selection/configuration.
+Do NOT introduce new frameworks.
+
+Accuracy is the highest priority.
+
+Do not make assumptions.
+Do not invent missing requirements.
+Do not make self-directed architectural decisions.
+
+If an ambiguity or conflict is discovered:
+STOP, report the exact issue, and wait for a decision.
+
+==================================================
+CURRENT LOADING ARCHITECTURE — PRESERVE
+==================================================
+
+The current Loading flow is:
+
+validate source directory
+    ↓
+discover supported files
+    ↓
+load business metadata CSV
+    ↓
+load each source file
+    ↓
+enrich document metadata
+    ↓
+return documents + summary
+
+The current implementation already has per-source-file loading isolation.
+
+Do NOT remove or replace this behavior.
+
+The current implementation uses:
+
+- PyMuPDFLoader
+- PDFPlumberLoader
+- Docx2txtLoader
+- UnstructuredPowerPointLoader
+- TextLoader
+- BSHTMLLoader
+
+Keep the existing loader classes and their current configuration exactly as implemented.
+
+The current `_load_single_file()` mechanism must remain the mechanism for isolating individual source-file loading failures.
+
+==================================================
+1. PRESERVE CURRENT FAULT ISOLATION
+==================================================
+
+The required behavior is:
+
+File A → success
+File B → loading failure → ERROR log → skip B
+File C → success
+
+A failed source file must NOT stop subsequent files.
+
+Do NOT change this to batch-level exception handling.
+
+Do NOT introduce retries.
+
+Do NOT fabricate a Document for a failed source.
+
+Do NOT silently swallow the failure.
+
+The failure must be logged and the source skipped.
+
+For metadata enrichment, preserve the existing source-level fault isolation as well.
+
+If one source's metadata enrichment fails:
+
+source A → success
+source B → metadata failure → ERROR log → skip B
+source C → success
+
+Do not allow B to prevent C from being enriched.
+
+==================================================
+2. FIX THE LOADING FAILURE LOG IDENTITY
+==================================================
+
+The current loading failure log uses:
+
+document_id=None
+
+because the failure occurs before metadata enrichment.
+
+Do NOT fabricate a document_id.
+
+For a failure occurring before document_id exists, log the available source identity:
+
+- source path / source file
+
+and include document_id only when a real value exists.
+
+Do not change the document_id generation strategy.
+
+Do not calculate a new temporary document_id only for logging.
+
+==================================================
+3. FINAL LOADING STATISTICS
+==================================================
+
+Improve the final Loading summary so it clearly distinguishes:
+
+- discovered source files
+- successfully loaded source files
+- failed source files
+- pages/documents successfully loaded
+- empty pages
+- total duration
+
+Use the existing summary structure where possible.
+
+Do not remove existing summary fields.
+
+Do not invent unrelated metrics.
+
+The important distinction is:
+
+Example:
+
+5 source files discovered
+
+4 successfully processed
+1 failed
+
+The final log must make this visible.
+
+Do not incorrectly report:
+
+Documents = 4
+
+without making clear that 1 source failed.
+
+==================================================
+4. FROZEN LOGGING ARCHITECTURE
+==================================================
+
+Use the project's existing logger.
+
+Do NOT introduce:
+
+- LangSmith
+- OpenTelemetry
+- Redis
+- structlog
+- another logging framework
+- a new observability architecture
+- tracing libraries
+
+The existing logging architecture is frozen.
+
+Use the existing logger consistently.
+
+==================================================
+5. LOADING LOG LEVELS
+==================================================
+
+Preserve the following logging responsibilities.
+
+INFO:
+Lifecycle and successful operational events.
+
+Examples:
+
+- ingestion started
+- selected PDF loader
+- files discovered
+- metadata CSV loaded
+- loading completed
+
+CONFIG:
+Record the actual Loading configuration being used.
+
+Include only configuration already defined by the existing architecture, such as:
+
+- selected PDF loader
+- supported input directory
+- metadata CSV path
+
+Do not invent configuration fields.
+
+STATISTICS:
+Record actual Loading results, including:
+
+- discovered source files
+- successful source files
+- failed source files
+- loaded pages/documents
+- empty pages
+- duration
+
+WARNING:
+Recoverable/non-fatal issues.
+
+Examples already present in the architecture include:
+
+- missing CSV metadata for a source
+
+Do NOT convert recoverable warnings into fatal errors unless required by existing behavior.
+
+ERROR:
+Actual document/source failures.
+
+An ERROR must identify:
+
+- source
+- document_id if available
+- actual exception/reason
+
+Do NOT log full document contents.
+
+Do NOT log page content.
+
+Do NOT expose sensitive document data.
+
+==================================================
+6. DURATION
+==================================================
+
+Add Loading duration measurement using the standard library only.
+
+Measure the actual complete Loading operation.
+
+The final completion log should include duration in a clear unit.
+
+Example:
+
+Loading completed.
+Discovered=5
+Succeeded=4
+Failed=1
+Pages=...
+EmptyPages=...
+Duration=2.31s
+
+Do not add a new timing framework.
+
+Do not add artificial timings.
+
+==================================================
+7. CONFIGURATION LOGGING
+==================================================
+
+At Loading start, log the actual configuration selected by the existing code.
+
+At minimum, preserve visibility of:
+
+- selected PDF loader
+- document directory
+- metadata CSV path
+
+Do not log secrets.
+
+Do not log environment variables containing credentials.
+
+Do not add configuration values that do not exist.
+
+==================================================
+8. METADATA CONTRACT — DO NOT CHANGE
+==================================================
+
+The Loading phase remains the owner of document-level metadata.
+
+Preserve:
+
+- document_id
+- document_checksum
+- source_file
+- source_path
+- domain
+- document_type
+- loader_used
+- page_number
+- character_count
+- is_empty_page
+- ingested_at
+
+Do NOT rename these fields.
+
+Do NOT remove these fields.
+
+Do NOT move their ownership to Chunking.
+
+Do NOT change document_id generation.
+
+Do NOT change document_checksum generation.
+
+The existing document_id strategy must remain:
+
+stable logical source identity based on the existing implementation.
+
+The existing document_checksum remains the SHA-256 fingerprint of the source file.
+
+Do not modify either strategy.
+
+==================================================
+9. CSV METADATA
+==================================================
+
+Preserve the current UTF-8 BOM-safe CSV behavior:
+
+encoding="utf-8-sig"
+
+Do NOT revert it to "utf-8".
+
+Preserve:
+
+- filename
+- domain
+- document_type
+
+lookup behavior.
+
+Do not redesign CSV handling.
+
+If a filename has no CSV metadata, retain the existing warning behavior and continue according to the current architecture.
+
+Do not fail the entire ingestion because one document has missing optional business metadata.
+
+==================================================
+10. SUCCESSFUL PATH MUST REMAIN UNCHANGED
+==================================================
+
+For a valid source file, Loading must produce the same Document content and metadata as before.
+
+This improvement is primarily about:
+
+- logging
+- statistics
+- duration
+- failure visibility
+
+Do not alter successful document content extraction.
+
+Do not alter page numbering.
+
+Do not alter checksum calculation.
+
+Do not alter document_id calculation.
+
+Do not alter domain/document_type mapping.
+
+==================================================
+11. TESTING
+==================================================
+
+Run the existing Loading tests first.
+
+Then add/update only the minimal tests required to verify these improvements.
+
+Test at minimum:
+
+A. Successful loading remains unchanged.
+
+B. One source file fails:
+   A → success
+   B → failure
+   C → success
+
+Verify:
+- A is returned
+- C is returned
+- B is not returned
+- B generates an ERROR log
+- processing continues after B
+
+C. Metadata enrichment failure for one source does not stop other sources.
+
+D. Final summary correctly distinguishes:
+   - discovered
+   - successful
+   - failed
+
+E. Duration is present in the completion logging.
+
+F. Configuration logging contains the actual selected loader/configuration.
+
+G. Existing metadata remains unchanged.
+
+H. UTF-8 BOM CSV handling remains working.
+
+I. No document content is written into logs.
+
+Do not make tests dependent on exact timestamps.
+
+Do not make tests dependent on random UUID values.
+
+==================================================
+12. DO NOT OVER-ENGINEER
+==================================================
+
+Do NOT add:
+
+- retry logic
+- async processing
+- multiprocessing
+- queues
+- caching
+- Redis
+- LangSmith
+- OpenTelemetry
+- new classes
+- new logging framework
+- new files unless genuinely required
+- new dependencies
+- API changes
+- architecture changes
+
+Keep the implementation small.
+
+Reuse the current functions.
+
+Prefer modifying the existing summary/logging flow rather than creating a new observability subsystem.
+
+==================================================
+13. IMPORTANT STOP CONDITIONS
+==================================================
+
+STOP instead of guessing if:
+
+- a requested metric is not available from the current architecture
+- adding it would require changing the public API
+- adding it would require changing document metadata semantics
+- existing tests conflict with the requirements
+- the current loader behavior prevents safe fault isolation
+- the existing logging architecture conflicts with this specification
+
+Report the exact problem.
+
+Do not silently redesign the system.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+After implementation, report:
+
+1. Exact files changed.
+2. Loading changes made.
+3. Fault-isolation behavior verified.
+4. Logging changes made.
+5. Final statistics now available.
+6. Duration logging verified.
+7. Metadata contract preserved.
+8. Tests executed.
+9. Test results.
+10. Any unresolved issue.
+
+Do NOT make additional improvements after this task.
+
+The goal is to finalize and freeze the Loading phase so the next phase can begin.
+
+FINAL RULE:
+
+Preserve the existing architecture and successful behavior.
+Improve only the frozen Loading logging, statistics, duration,
+and document-level fault-isolation behavior specified above.
+
+
+
+
+CHUNKING LOGGING — IMPLEMENT FROZEN LOGGING ARCHITECTURE ONLY
+
+ROLE
+
+You are a Senior AI Engineer and Production Python Engineer working on the existing RAG repository.
+
+Implement ONLY the logging/observability requirements for the existing Chunking phase.
+
+The Chunking functionality, metadata contract, Parent/Child hierarchy, IDs, and checksums are already implemented.
+
+Do NOT redesign Chunking.
+
+Do NOT modify the existing Parent/Child architecture.
+
+Do NOT change chunking behavior.
+
+Do NOT change chunk sizes or overlaps.
+
+Do NOT change Parent/Child IDs.
+
+Do NOT change checksum generation.
+
+Do NOT change metadata ownership.
+
+Do NOT introduce a new logging framework.
+
+Do NOT introduce LangSmith at this phase.
+
+Do NOT introduce OpenTelemetry.
+
+Do NOT introduce Redis.
+
+Do NOT introduce retries, queues, async processing, or other infrastructure.
+
+Accuracy is the highest priority.
+
+Do not make assumptions.
+
+Do not invent additional logging requirements.
+
+If an ambiguity or conflict is discovered:
+STOP, explain the exact issue, and wait for a decision.
+
+==================================================
+CURRENT CHUNKING ARCHITECTURE
+==================================================
+
+The existing function is:
+
+create_parent_child_chunks(
+    documents,
+    parent_chunk_size,
+    parent_chunk_overlap,
+    child_chunk_size,
+    child_chunk_overlap
+)
+
+It produces:
+
+{
+    "parent": parent_document,
+    "children": [child_document, ...]
+}
+
+The existing Parent/Child processing must remain unchanged.
+
+Document-level fault isolation is already implemented:
+
+Document A → success
+Document B → failure → ERROR log → discard B's partial result → continue
+Document C → success
+
+Do NOT change this behavior.
+
+==================================================
+FROZEN LOGGING ARCHITECTURE
+==================================================
+
+Use the existing project logger:
+
+from rag_app.observability.logger import logger
+
+Do not create another logger.
+
+Do not change the logging framework.
+
+Chunking logging must contain these categories:
+
+1. INFO — lifecycle
+2. CONFIG — actual chunking configuration
+3. STATISTICS — actual processing results
+4. WARNING — recoverable issues
+5. ERROR — document-level failures
+
+==================================================
+1. INFO — CHUNKING LIFECYCLE
+==================================================
+
+At the beginning of create_parent_child_chunks(), log that Chunking has started.
+
+The start log must identify the Chunking phase.
+
+Example:
+
+INFO: Starting chunking.
+
+Do not log document page_content.
+
+Do not log entire documents.
+
+Do not create one INFO log for every chunk.
+
+At successful completion, log that Chunking completed.
+
+Example:
+
+INFO: Chunking completed.
+
+The completion event must be emitted after all documents have been processed.
+
+If some documents failed but the overall function completed, the completion event should still occur because the remaining valid documents were processed.
+
+==================================================
+2. CONFIG — ACTUAL CHUNKING CONFIGURATION
+==================================================
+
+At Chunking start, log the configuration actually being used.
+
+Log:
+
+- parent_chunk_size
+- parent_chunk_overlap
+- child_chunk_size
+- child_chunk_overlap
+- splitter
+
+The splitter is:
+
+RecursiveCharacterTextSplitter
+
+The values must come from the actual function arguments/configuration.
+
+Do NOT hard-code logging values separately from the actual configuration.
+
+Example structure:
+
+CONFIG Chunking:
+parent_chunk_size=...
+parent_chunk_overlap=...
+child_chunk_size=...
+child_chunk_overlap=...
+splitter=RecursiveCharacterTextSplitter
+
+Do not invent additional configuration fields.
+
+==================================================
+3. STATISTICS — ACTUAL RESULTS
+==================================================
+
+At completion, log actual Chunking statistics.
+
+The statistics must include the information already defined for this project:
+
+- documents processed
+- successful documents
+- failed documents
+- parent chunks created
+- child chunks created
+- document/chunk statistics already defined by the project
+- duration
+
+Do not report configured values as actual results.
+
+For example:
+
+parent_chunk_size is CONFIG.
+
+parent_chunks_created is STATISTICS.
+
+Keep these concepts separate.
+
+Count only successfully committed Parent/Child results.
+
+A failed document's partial chunks must NOT be counted as successfully created chunks.
+
+Example:
+
+5 documents
+4 successful
+1 failed
+18 parents
+82 children
+
+The statistics should reflect:
+
+documents discovered/received = 5
+successful documents = 4
+failed documents = 1
+parent chunks = 18
+child chunks = 82
+
+Use the actual values calculated by the function.
+
+Do not fabricate values.
+
+==================================================
+4. DURATION
+==================================================
+
+Measure actual Chunking execution time.
+
+Use the Python standard library.
+
+Use a monotonic timer such as:
+
+time.perf_counter()
+
+Start timing at the beginning of create_parent_child_chunks().
+
+Stop timing after all documents have been processed.
+
+Report the actual duration.
+
+Do not use timestamps as a substitute for elapsed-duration measurement.
+
+Do not introduce a timing framework.
+
+==================================================
+5. WARNING — RECOVERABLE ISSUES
+==================================================
+
+Use WARNING only for recoverable conditions that do not require the entire Chunking run to fail.
+
+Examples already established for this project include:
+
+- empty/non-extractable content when the existing Chunking behavior can safely continue
+- unusually small/empty chunking results
+- missing non-critical metadata if the existing architecture allows processing to continue
+
+Do NOT invent new warning conditions merely to create logs.
+
+Do NOT convert normal behavior into warnings.
+
+Do NOT log every small chunk as a warning.
+
+Do NOT log empty content as a warning unless the current architecture actually encounters it as a meaningful recoverable condition.
+
+If a condition is not clearly defined as recoverable, do not invent behavior.
+
+==================================================
+6. ERROR — DOCUMENT-LEVEL FAILURE
+==================================================
+
+The existing document-level fault isolation must remain.
+
+If one document fails during Chunking:
+
+1. Catch the exception at the document level.
+2. Do NOT add partial chunks from that document to the final result.
+3. Log ERROR.
+4. Continue with the next document.
+
+The ERROR log must identify:
+
+- source_file/source when available
+- document_id when available
+- actual exception/reason
+
+Example:
+
+ERROR: Chunking failed for document source='ABC.pdf'
+document_id='...'
+reason='...'
+
+Do not fabricate document_id.
+
+Do not log page_content.
+
+Do not log complete chunk content.
+
+Do not silently swallow the exception.
+
+==================================================
+7. DOCUMENT-LEVEL FAULT ISOLATION
+==================================================
+
+The current implementation uses a temporary per-document result:
+
+document_chunk_hierarchy
+
+and commits it only after the entire document succeeds.
+
+Preserve this behavior.
+
+Correct:
+
+Document A:
+    create all chunks
+    success
+    extend final result
+
+Document B:
+    create some chunks
+    failure
+    discard temporary result
+    ERROR log
+    continue
+
+Document C:
+    create all chunks
+    success
+    extend final result
+
+Do NOT change the isolation boundary to parent-level or child-level.
+
+One document is the fault-isolation unit.
+
+==================================================
+8. NO PER-CHUNK LOGGING
+==================================================
+
+Do NOT produce INFO logs for every Parent or Child chunk.
+
+Do NOT log:
+
+- page_content
+- chunk text
+- embeddings
+- complete metadata dictionaries
+
+The purpose of logging is operational observability, not dumping application data.
+
+Use counts, identifiers where necessary, configuration, timing, and actual errors.
+
+==================================================
+9. METADATA MUST REMAIN UNCHANGED
+==================================================
+
+Do NOT modify the existing metadata contract.
+
+Loading metadata:
+
+- document_id
+- document_checksum
+- source_file
+- source_path
+- domain
+- document_type
+- loader_used
+- page_number
+- character_count
+- is_empty_page
+- ingested_at
+
+Parent metadata:
+
+- parent_id
+- parent_index
+- parent_checksum
+
+Child metadata:
+
+- parent_id
+- child_id
+- child_index
+- child_checksum
+
+Common metadata:
+
+- page_start
+- page_end
+- status
+- version
+- updated_at
+- indexed_at
+
+Do not add logging fields into Document.metadata.
+
+Logging data must remain separate from chunk metadata.
+
+==================================================
+10. DO NOT CHANGE CHUNKING BEHAVIOR
+==================================================
+
+Do NOT change:
+
+- parent chunk size
+- parent overlap
+- child chunk size
+- child overlap
+- RecursiveCharacterTextSplitter
+- Parent/Child hierarchy
+- parent_id generation
+- child_id generation
+- parent checksum
+- child checksum
+- metadata propagation
+- returned ChunkGroup structure
+
+This task is logging only.
+
+==================================================
+11. TESTING
+==================================================
+
+Run existing Chunking tests.
+
+Add/update only the minimum tests required to verify logging.
+
+Verify:
+
+1. Chunking start log is emitted.
+
+2. Actual configuration is logged.
+
+3. Successful completion log is emitted.
+
+4. Statistics contain actual:
+   - successful documents
+   - failed documents
+   - parent count
+   - child count
+   - duration
+
+5. A failed document produces an ERROR log.
+
+6. A failed document does not stop the next document.
+
+7. A failed document's partial chunks are not returned.
+
+8. Successful documents remain unchanged.
+
+9. No chunk content is written to logs.
+
+10. Existing metadata remains unchanged.
+
+11. Parent/Child IDs and checksums remain unchanged.
+
+Do not make tests depend on exact duration values.
+
+Do not make tests depend on exact UUID values.
+
+==================================================
+12. PERFORMANCE
+==================================================
+
+Do not calculate expensive statistics repeatedly for logging.
+
+Reuse values already available during Chunking.
+
+Do not add another pass over all chunk contents unless genuinely required by the already-defined statistics.
+
+Keep logging lightweight.
+
+==================================================
+13. STOP CONDITIONS
+==================================================
+
+STOP and report the issue if:
+
+- the frozen logging requirements conflict with existing code
+- a requested statistic cannot be obtained without changing the architecture
+- a logging requirement would require changing metadata semantics
+- existing tests conflict with this specification
+
+Do not guess.
+
+Do not redesign.
+
+Do not add an alternative architecture.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+After implementation report:
+
+1. Files changed.
+2. Logging added.
+3. INFO events added.
+4. CONFIG fields logged.
+5. STATISTICS logged.
+6. WARNING behavior implemented, if applicable.
+7. ERROR behavior verified.
+8. Document fault isolation verified.
+9. Tests executed and results.
+10. Any blocker discovered.
+
+Do not implement anything outside this prompt.
+
+FINAL RULE:
+
+Implement the frozen Chunking logging architecture only.
+
+Preserve the existing Chunking behavior exactly.
+
+One failed document must be logged, discarded, and skipped without stopping the remaining documents.

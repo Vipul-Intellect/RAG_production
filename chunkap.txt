@@ -1,0 +1,1123 @@
+You are a Senior AI Engineer and Production Python Engineer.
+
+Implement ONLY Phase 2.01 of the Chunking module.
+
+This is an implementation task.
+
+==================================================
+IMPORTANT ENGINEERING RULES
+==================================================
+
+Accuracy is the highest priority.
+
+Do NOT make assumptions.
+
+Do NOT hallucinate missing requirements.
+
+Do NOT redesign the architecture.
+
+Do NOT change previously frozen engineering decisions.
+
+Do NOT optimize beyond the current milestone.
+
+Do NOT implement future phases.
+
+If there are multiple valid implementation approaches,
+choose the simplest production-quality solution that
+satisfies the current milestone while keeping future
+milestones easy to implement.
+
+If you discover any architectural conflict,
+ambiguity, blocker, or missing requirement:
+
+STOP IMPLEMENTATION.
+
+Explain:
+
+1. What the blocker is.
+2. Why it is a blocker.
+3. What decision is required.
+
+Do NOT guess.
+
+==================================================
+PROJECT CONTEXT
+==================================================
+
+The Loading phase has already been completed.
+
+Chunking receives:
+
+List[Document]
+
+Every input Document already contains metadata produced
+by the Loading phase.
+
+Do NOT modify the Loading phase.
+
+Do NOT modify previously implemented modules unless
+there is a genuine bug that prevents this milestone.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Implement ONLY the core chunking architecture.
+
+The responsibility of this phase is ONLY to create the
+parent-child chunk hierarchy.
+
+Nothing else.
+
+==================================================
+IMPLEMENT ONLY
+==================================================
+
+Implement ONLY:
+
+1. RecursiveCharacterTextSplitter configuration.
+
+2. Parent chunk generation.
+
+3. Child chunk generation from each parent chunk.
+
+4. Return a clean chunk hierarchy where each parent
+   chunk is associated with its corresponding child
+   chunks.
+
+The relationship must exist ONLY inside the returned
+hierarchy.
+
+Do NOT encode the relationship through metadata,
+IDs, checksums, or any other future feature.
+
+==================================================
+PRESERVE EXISTING DATA
+==================================================
+
+Preserve every metadata field already attached to the
+input Documents.
+
+Do NOT remove existing metadata.
+
+Do NOT add new metadata fields.
+
+Metadata enrichment belongs to a later milestone.
+
+==================================================
+DO NOT IMPLEMENT
+==================================================
+
+Do NOT implement:
+
+• Metadata enrichment
+• Metadata inheritance
+• Parent metadata
+• Child metadata
+• Parent ID
+• Child ID
+• Document ID
+• UUID generation
+• Parent checksum
+• Child checksum
+• Logging architecture
+• LangSmith
+• Validation
+• Embeddings
+• Storage
+• Retrieval
+• Reranking
+• LLM calls
+• Evaluation
+• Cache
+• Redis
+• Incremental updates
+• Versioning
+• Retry logic
+• Performance optimizations
+
+These belong to future milestones.
+
+==================================================
+FUTURE MILESTONES
+==================================================
+
+This implementation must remain easy to extend.
+
+Future phases will add:
+
+• Metadata
+• Metadata inheritance
+• Parent IDs
+• Child IDs
+• Checksums
+• Production logging
+• LangSmith instrumentation
+• Validation
+
+Do NOT partially implement any of them now.
+
+Simply leave clean extension points through good
+code organization.
+
+==================================================
+ENGINEERING PRINCIPLES
+==================================================
+
+Prefer correctness over cleverness.
+
+Prefer readable code over compact code.
+
+Prefer simple code over complex code.
+
+Do not over-engineer.
+
+Avoid unnecessary abstractions.
+
+Avoid unnecessary helper functions.
+
+Avoid unnecessary wrappers.
+
+Avoid unnecessary classes.
+
+Avoid premature optimization.
+
+Each function should have one clear responsibility.
+
+Keep public APIs clean and stable.
+
+Reuse the existing project dependencies.
+
+Do not introduce new third-party libraries unless
+they are absolutely required for this milestone.
+
+Follow the existing project structure exactly.
+
+Do not create unnecessary files.
+
+Do not rename existing public functions unless there
+is a genuine architectural blocker.
+
+==================================================
+OUTPUT
+==================================================
+
+Return ONLY the code required for Phase 2.01.
+
+Do NOT implement anything beyond this milestone,
+even if future requirements are obvious.
+
+new changes done 
+we  ONLY had done these 4 changes to the current Phase 2.01 Chunking implementation.
+
+Do not redesign anything else.
+Do not implement any future phase.
+Do not modify the Loading phase.
+
+1. Replace the current generic ChunkGroup type alias with a TypedDict:
+
+   parent: Document
+   children: list[Document]
+
+   Reason: make the parent-child return structure explicitly typed and prevent an overly generic dictionary type.
+
+2. Process input documents independently.
+
+   Instead of passing the complete documents list to the parent splitter at once, process one Document at a time.
+
+   Reason: keeps document processing isolated and creates a clean document-level boundary for future parallel processing, without implementing parallelism now.
+
+3. Keep the Parent → Child relationship only in the returned ChunkGroup structure.
+
+   Each parent must contain exactly the children generated from that parent.
+
+   Do NOT add parent_id, child_id, or metadata-based relationships in this phase.
+
+   Reason: IDs and metadata belong to later phases.
+
+4. Preserve all metadata already present on the input Documents.
+
+   Do not remove, overwrite, or add new metadata fields in Phase 2.01.
+
+   Reason: Loading has already enriched the Documents, and metadata enrichment belongs to the next phase.
+
+Everything else in the current implementation should remain unchanged, including:
+
+- RecursiveCharacterTextSplitter
+- Parent chunk size = 1900
+- Parent overlap = 300
+- Child chunk size = 500
+- Child overlap = 80
+- Current project structure
+- Current public function
+- No IDs
+- No checksums
+- No production logging
+- No LangSmith
+- No parallel execution
+
+If you encounter any conflict or ambiguity while making these changes, STOP and report it. Do not guess or make an architectural decision on your own.
+
+After making the changes, briefly report:
+1. What was changed.
+2. What was intentionally left unchanged.
+3. Any issue found.
+
+METADAT PHASE:
+You are a Senior AI Engineer and Production Python Engineer.
+
+Implement ONLY Phase 2.02 of the Chunking module: METADATA.
+
+Phase 2.01 is already implemented and working.
+
+Do NOT redesign Phase 2.01.
+Do NOT modify the Loading phase.
+Do NOT implement Phase 2.03 or any later phase.
+
+==================================================
+IMPORTANT ENGINEERING RULES
+==================================================
+
+Accuracy is the highest priority.
+
+Do NOT make assumptions.
+
+Do NOT hallucinate missing requirements.
+
+Do NOT change any frozen architectural decision.
+
+Do NOT add fields that are not explicitly requested here.
+
+Prefer simple, readable production-quality code.
+
+Do not over-engineer.
+
+Do not introduce unnecessary classes, abstractions,
+wrappers, helper modules, or design patterns.
+
+If you discover an ambiguity, conflict, or blocker:
+
+STOP.
+
+Explain the issue and wait for a decision.
+
+Do not guess.
+
+==================================================
+CURRENT ARCHITECTURE
+==================================================
+
+Phase 2.01 already creates:
+
+Parent chunks
+
+and
+
+Child chunks
+
+with the relationship:
+
+parent → children
+
+The current returned structure is:
+
+{
+    "parent": parent_document,
+    "children": [child_document, ...]
+}
+
+Keep this structure.
+
+==================================================
+CORE REQUIREMENT
+==================================================
+
+Add the finalized metadata to the Parent and Child
+chunk Documents produced by Phase 2.01.
+
+IMPORTANT:
+
+Do NOT mutate the original input Documents received
+by the chunking function.
+
+Do NOT write new chunk metadata back into the original
+input `documents` list.
+
+The metadata must be attached to the newly created
+parent/child chunk Documents that are returned by the
+Chunking module.
+
+Existing metadata inherited from Loading must be
+preserved.
+
+Do not delete or overwrite existing Loading metadata
+unless explicitly required by the metadata contract below.
+
+==================================================
+PARENT METADATA
+==================================================
+
+Each Parent chunk must contain the finalized metadata
+fields:
+
+- document_id
+- parent_id
+- parent_index
+- source_file
+- domain
+- document_type
+- page_start
+- page_end
+- status
+- checksum
+- version
+- ingested_at
+- updated_at
+- indexed_at
+
+IMPORTANT:
+
+Parent ID and checksum generation are part of the later
+Identity/Checksum milestone.
+
+Do NOT implement the ID/checksum generation logic in
+this phase unless the existing architecture already
+provides those values.
+
+Do not invent placeholder IDs or checksums.
+
+The metadata structure must remain easy to extend when
+Phase 2.03 adds the actual identifiers and checksums.
+
+==================================================
+CHILD METADATA
+==================================================
+
+Each Child chunk must contain:
+
+- document_id
+- parent_id
+- child_id
+- child_index
+- source_file
+- domain
+- document_type
+- page_start
+- page_end
+- status
+- checksum
+- version
+- ingested_at
+- updated_at
+- indexed_at
+
+IMPORTANT:
+
+Do NOT invent child_id, parent_id, or checksum values
+if their generation has not yet been implemented.
+
+Phase 2.03 will handle the actual identity/checksum
+generation.
+
+==================================================
+METADATA INHERITANCE
+==================================================
+
+Child chunks must preserve the relevant metadata inherited
+from their parent/document.
+
+The parent-child relationship must remain intact.
+
+Do not create a second relationship mechanism.
+
+Do not use list position as a substitute for parent_id.
+
+The explicit parent_id will be added by the identity phase.
+
+==================================================
+INDEXED_AT
+==================================================
+
+`indexed_at` is part of the metadata contract because
+the Storage phase may need it later.
+
+However:
+
+DO NOT set `indexed_at` to `ingested_at`.
+
+DO NOT invent an indexing timestamp.
+
+Chunking does not perform vector indexing.
+
+Leave the value unset/None until the Storage phase
+actually indexes the chunk.
+
+==================================================
+STATUS
+==================================================
+
+Use the finalized lifecycle status field.
+
+For the current chunk generation:
+
+ACTIVE = current chunk.
+
+INACTIVE = no longer current.
+
+Do NOT introduce an additional `OLDER` status.
+
+Version information is used to distinguish generations.
+
+Do not implement version-management logic in this phase
+unless it already exists.
+
+==================================================
+INDEX / POSITION FIELDS
+==================================================
+
+`parent_index` identifies the position of the parent chunk
+within its document.
+
+`child_index` identifies the position of the child chunk
+within its parent.
+
+These are ordering/position metadata.
+
+They are NOT unique identifiers.
+
+Do not use them as replacements for parent_id or child_id.
+
+==================================================
+PAGE METADATA
+==================================================
+
+Use the existing page information available from the
+Loading phase.
+
+Represent the parent/child page range using:
+
+- page_start
+- page_end
+
+Do not invent page information that is not available from
+the input Document metadata.
+
+If the existing Loading representation cannot support
+the required page range without making an architectural
+assumption, STOP and report the issue instead of guessing.
+
+==================================================
+TIMESTAMPS
+==================================================
+
+Preserve/use the existing ingestion timestamp where it
+already exists.
+
+`ingested_at` represents ingestion.
+
+`updated_at` represents the last update/reprocessing
+timestamp.
+
+Do not invent additional timestamps.
+
+`indexed_at` must remain unset until Storage performs
+indexing.
+
+==================================================
+FUTURE EXTENSIBILITY
+==================================================
+
+This metadata phase must remain easy to extend.
+
+Future phases will add/complete:
+
+- parent_id generation
+- child_id generation
+- parent checksum
+- child checksum
+- production logging
+- LangSmith instrumentation
+- Storage indexing
+- indexed_at
+
+Do not implement those future responsibilities now.
+
+==================================================
+DO NOT IMPLEMENT
+==================================================
+
+Do NOT add:
+
+- UUID generation
+- checksum generation
+- embeddings
+- vector storage
+- retrieval
+- reranking
+- LLM calls
+- evaluation
+- Redis
+- caching
+- retry logic
+- parallel processing
+- LangSmith
+- production logging architecture
+- new files unless genuinely required
+- new dependencies unless genuinely required
+
+==================================================
+CODE QUALITY
+==================================================
+
+Keep the existing public API stable.
+
+Do not change the project structure.
+
+Do not modify unrelated code.
+
+Do not duplicate metadata unnecessarily.
+
+Prefer a simple metadata-building approach that can later
+be extended when IDs/checksums are introduced.
+
+Preserve existing metadata rather than reconstructing
+unrelated fields unnecessarily.
+
+If a clean implementation requires a small internal helper,
+use one only if it genuinely improves clarity and avoids
+duplication.
+
+Do not create an abstraction merely for future possibilities.
+
+==================================================
+IMPLEMENTATION SAFETY
+==================================================
+
+Implement this milestone only.
+
+Do not try to implement everything in one pass.
+
+Make the smallest correct change.
+
+After implementation, verify that:
+
+1. Original input Documents are not mutated.
+2. Parent chunks contain the required metadata structure.
+3. Child chunks contain the required metadata structure.
+4. Existing Loading metadata is preserved.
+5. Parent/child hierarchy still works.
+6. No IDs/checksums are fabricated.
+7. `indexed_at` is not falsely populated.
+8. Phase 2.01 behavior remains intact.
+
+If anything fails or is ambiguous:
+
+STOP.
+
+Do not keep modifying the code indefinitely.
+
+Report the exact problem and wait for further instructions.
+
+==================================================
+FINAL RESPONSE
+==================================================
+
+After implementation, briefly report:
+
+1. Files changed.
+2. Metadata added/preserved.
+3. What was intentionally NOT implemented.
+4. Validation/tests performed.
+5. Any issue or ambiguity discovered.
+
+Do not make additional architectural changes.
+
+
+
+child and parent id:
+You are a Senior AI Engineer and Production Python Engineer.
+
+Implement ONLY the Parent/Child ID generation sub-phase of the
+Chunking module.
+
+Do NOT implement checksums or the complete metadata layer yet.
+
+==================================================
+FROZEN ARCHITECTURE
+==================================================
+
+The Chunking pipeline currently has:
+
+Phase 2.01
+Document
+→ Parent chunks
+→ Child chunks
+→ Parent → Child hierarchy
+
+The current hierarchy is:
+
+{
+    "parent": parent_document,
+    "children": [child_document, ...]
+}
+
+Phase 2.01 must remain unchanged except for the minimum changes
+required to add Parent/Child identity.
+
+==================================================
+DOCUMENT ID — DO NOT CHANGE
+==================================================
+
+`document_id` is already generated during the Loading phase.
+
+The current Loading architecture uses the relative path to create
+the document ID.
+
+DO NOT:
+
+- regenerate document_id
+- replace document_id with UUID
+- create a second document ID
+- derive document_id from parent/child content
+- modify the Loading phase
+
+The existing `document_id` must be preserved and inherited by
+the parent and child chunks.
+
+IMPORTANT:
+
+Do not make any new decision about document_id stability,
+path changes, SharePoint IDs, or external document identifiers.
+
+Follow the existing Loading architecture exactly.
+
+==================================================
+PARENT ID
+==================================================
+
+Generate a unique UUID for every Parent chunk.
+
+Requirements:
+
+- Use Python's standard-library UUID implementation.
+- Each Parent chunk receives its own unique `parent_id`.
+- The parent ID must be independent of the document ID.
+- Do not derive the parent ID from the file path.
+- Do not derive the parent ID from chunk text.
+- Do not use parent_index as the parent ID.
+
+A parent ID identifies the specific Parent chunk.
+
+==================================================
+CHILD ID
+==================================================
+
+Generate a unique UUID for every Child chunk.
+
+Requirements:
+
+- Each Child chunk receives its own unique `child_id`.
+- The child ID must be independent of the parent ID.
+- Do not derive child_id from child text.
+- Do not use child_index as child_id.
+
+A child ID identifies the specific Child chunk.
+
+==================================================
+PARENT → CHILD RELATIONSHIP
+==================================================
+
+Every Child must also retain the `parent_id` of the Parent from
+which it was generated.
+
+Therefore:
+
+Parent:
+    parent_id = unique parent UUID
+
+Child:
+    child_id = unique child UUID
+    parent_id = the exact parent's parent_id
+
+This makes the relationship explicitly traceable.
+
+Do NOT create a different relationship mechanism.
+
+Do NOT use list position as the relationship.
+
+Do NOT rely only on the Python hierarchy for future persistence.
+
+==================================================
+DOCUMENT / PARENT / CHILD ID MODEL
+==================================================
+
+The final identity model must be:
+
+document_id
+    ↓
+    existing ID from Loading
+
+parent_id
+    ↓
+    UUID generated for each Parent chunk
+
+child_id
+    ↓
+    UUID generated for each Child chunk
+
+Relationship:
+
+document_id
+    └── parent_id
+          ├── child_id
+          ├── child_id
+          └── child_id
+
+==================================================
+FUTURE DOCUMENT UPDATE / REPROCESSING BEHAVIOR
+==================================================
+
+This section describes the already-decided future ingestion behavior.
+
+Do NOT implement this behavior in the current ID sub-phase.
+
+During future ingestion:
+
+1. Loading compares the previous document checksum with the
+   newly calculated document checksum.
+
+2. If the document checksum is unchanged:
+   - the document is skipped according to the ingestion design.
+   - no new Parent/Child chunks are created.
+   - no new Parent/Child UUIDs are generated.
+
+3. If the document checksum has changed:
+   - the document is reprocessed.
+   - the document is re-chunked.
+   - all Parent chunks are recreated.
+   - all Child chunks are recreated.
+   - new Parent UUIDs are generated for the newly created Parents.
+   - new Child UUIDs are generated for the newly created Children.
+   - the new Child IDs reference the new Parent IDs.
+   - new checksums will be generated in the future checksum phase.
+   - the complete metadata will be regenerated later.
+
+IMPORTANT:
+
+A checksum difference does NOT directly modify an existing
+parent_id or child_id.
+
+Instead:
+
+old chunks are replaced by newly created chunks,
+and those newly created chunks receive new UUIDs.
+
+Therefore:
+
+OLD VERSION
+Parent A → parent_id = UUID-1
+Child A  → child_id = UUID-2
+           parent_id = UUID-1
+
+Document changes
+
+NEW VERSION
+Parent A' → parent_id = NEW UUID
+Child A'  → child_id = NEW UUID
+            parent_id = NEW Parent UUID
+
+Do NOT attempt to preserve the old Parent/Child UUIDs across
+a full document reprocessing.
+
+Do NOT attempt chunk-level matching.
+
+Do NOT compare old child checksums against new child checksums
+to reuse IDs.
+
+Do NOT implement incremental chunk reuse.
+
+The frozen architecture intentionally compares the document
+checksum at the document level and reprocesses the entire
+document when it changes.
+
+==================================================
+ID STABILITY / REPROCESSING
+==================================================
+
+Within one processing run, once a Parent/Child UUID is generated,
+that chunk keeps that UUID.
+
+Do not generate multiple IDs for the same chunk during the same
+processing operation.
+
+When a changed document is reprocessed and new Parent/Child chunks
+are created, those newly created chunks receive newly generated
+UUIDs.
+
+Do NOT invent a persistence mechanism for Parent/Child UUIDs.
+
+Do NOT attempt to match old Parent/Child UUIDs to new chunks.
+
+Do NOT implement incremental chunk comparison.
+
+Do NOT implement chunk-level reuse.
+
+Those are outside this sub-phase.
+
+==================================================
+RELATIONSHIP AFTER FUTURE REPROCESSING
+==================================================
+
+For every newly created Parent:
+
+    parent_id = newly generated UUID
+
+For every newly created Child:
+
+    child_id = newly generated UUID
+    parent_id = newly generated ID of its actual Parent
+
+The relationship must always remain internally consistent.
+
+A Child must never point to an old Parent ID when it belongs to a
+newly recreated Parent.
+
+==================================================
+CHECKSUM RESPONSIBILITY
+==================================================
+
+Do NOT implement checksum generation in this sub-phase.
+
+The future checksum phase will handle:
+
+- document checksum reuse from Loading
+- parent checksum
+- child checksum
+
+The current ID phase must only prepare identity.
+
+Do not calculate SHA-256 here.
+
+Do not use a checksum as a UUID substitute.
+
+Do not derive UUIDs from checksums.
+
+UUID and checksum have separate responsibilities:
+
+UUID:
+    identifies a specific chunk instance.
+
+Checksum:
+    identifies/traces the content state of that chunk.
+
+==================================================
+WHAT TO IMPLEMENT
+==================================================
+
+Implement ONLY:
+
+1. Parent UUID generation.
+2. Child UUID generation.
+3. Child → parent_id association.
+4. Preserve the existing document_id.
+5. Make the generated identity available on the returned
+   Parent/Child Documents in the existing hierarchy.
+
+Do not change the Parent → Child hierarchy structure.
+
+==================================================
+DO NOT IMPLEMENT
+==================================================
+
+Do NOT implement:
+
+- document_id generation
+- document_id redesign
+- checksum generation
+- document checksum
+- parent checksum
+- child checksum
+- metadata expansion
+- page_start/page_end
+- parent_index
+- child_index
+- status
+- version
+- timestamps
+- indexed_at
+- embeddings
+- storage
+- retrieval
+- logging
+- LangSmith
+- parallel processing
+- caching
+- retry logic
+- incremental updates
+- chunk-level comparison
+- vector operations
+- old/new chunk matching
+- ID reuse across recreated chunks
+
+Those belong to other phases.
+
+==================================================
+IMPORTANT: INPUT DOCUMENT SAFETY
+==================================================
+
+Do NOT mutate the original input Documents from the Loading phase.
+
+Phase 2.01 already creates chunk Documents.
+
+Attach the Parent/Child identity only to the newly created chunk
+Documents that are returned by the Chunking module.
+
+Do not write Parent/Child IDs back into the original source
+Document objects.
+
+==================================================
+UUID REQUIREMENTS
+==================================================
+
+Use a proper UUID generated by Python's standard library.
+
+Do not manually construct UUID strings.
+
+Do not use:
+
+- random strings
+- timestamps
+- hashes
+- chunk indexes
+- file paths
+- checksums
+
+as substitutes for UUIDs.
+
+Parent IDs and Child IDs must be independently generated.
+
+==================================================
+ENGINEERING CONSTRAINTS
+==================================================
+
+Accuracy is the highest priority.
+
+Do not make assumptions.
+
+Do not redesign the architecture.
+
+Do not add unnecessary abstractions.
+
+Do not create unnecessary files.
+
+Do not introduce dependencies.
+
+Do not modify unrelated modules.
+
+Keep the existing public API stable whenever possible.
+
+Keep the implementation simple and readable.
+
+Do not implement future functionality just because it is
+mentioned in the architecture.
+
+The future behavior described above is architectural context only.
+Implement only the current ID-generation responsibility.
+
+==================================================
+FAIL-SAFE RULE
+==================================================
+
+If you discover any ambiguity, conflict, existing implementation
+that prevents this sub-phase from being implemented correctly, or
+anything that would require an architectural decision:
+
+STOP.
+
+Do not guess.
+
+Do not continue modifying code.
+
+Report:
+
+1. The exact issue.
+2. Why it matters.
+3. The decision required.
+
+==================================================
+VALIDATION
+==================================================
+
+After implementation, verify:
+
+1. Every Parent has a unique parent_id.
+2. Every Child has a unique child_id.
+3. Every Child's parent_id matches its actual Parent.
+4. Existing document_id is preserved.
+5. Original input Documents are not mutated.
+6. The existing Parent → Child hierarchy still works.
+7. No checksum logic was added.
+8. No unrelated metadata fields were added.
+9. No future-phase functionality was implemented.
+10. No old/new chunk matching was implemented.
+11. No UUID is generated more than once for the same chunk during
+    the same processing operation.
+
+==================================================
+STOP CONDITION
+==================================================
+
+Implement only this sub-phase.
+
+Do not continue automatically into checksum generation or
+metadata enrichment.
+
+Do not continue automatically into logging.
+
+Do not continue automatically into Storage.
+
+After completing the change, briefly report:
+
+- Files changed.
+- What was implemented.
+- What was intentionally left for later.
+- Validation performed.
+- Any issue found.
+
+If everything is correct, stop.
+
+
+testing 2:
+
+Do NOT rerun or modify the Loading phase for this test.
+
+Use the existing output of the Loading phase as the input to
+`create_parent_child_chunks()`.
+
+For the current Parent/Child ID sub-phase, test only:
+
+Loading output
+→ Phase 2.01 chunking
+→ Parent/Child UUID generation
+→ verify IDs and parent-child relationships
+
+The previous runtime attempt timed out during the LangChain
+import/run stage and did not show an actual code error.
+
+Therefore:
+
+1. Run the focused Chunking/ID test again with a reasonable timeout.
+2. Verify that every parent receives a unique `parent_id`.
+3. Verify that every child receives a unique `child_id`.
+4. Verify every child's `parent_id` matches its actual parent.
+5. Verify the original input Documents are not mutated.
+6. If the test passes, report the result.
+7. If it times out again, determine whether the timeout is caused by
+   the environment/import performance rather than changing the
+   chunking/ID implementation.
+8. If an actual traceback or code error appears, stop and report it.
+
+Do NOT modify unrelated code.
+Do NOT rerun the full Loading pipeline unless the focused test
+actually requires it.
+Do NOT proceed to checksum generation yet.

@@ -1,0 +1,249 @@
+Implement the Retrieval phase only for the existing RAG pipeline.
+
+IMPORTANT:
+Do not redesign or modify:
+- ingestion
+- chunking
+- embeddings
+- Qdrant collections
+- deterministic Point ID formulas
+- generation lifecycle
+- ACTIVE/INACTIVE architecture
+- re-ingestion logic
+
+Those are already implemented and locked.
+
+==================================================
+RETRIEVAL ARCHITECTURE
+==================================================
+
+User query
+    ↓
+Existing BGE embedding model
+    ↓
+Qdrant child_chunks similarity search
+    ↓
+metadata filter: status == "ACTIVE"
+    ↓
+top-k Child results
+    ↓
+Child parent_id
+    ↓
+retrieve corresponding Parent chunks
+    ↓
+structured retrieval result
+
+==================================================
+REQUIREMENTS
+==================================================
+
+1. Query embedding
+
+Use the EXISTING BGEEmbeddingModel.
+
+Model:
+BAAI/bge-small-en-v1.5
+
+Dimension:
+384
+
+Do not instantiate a different embedding model or duplicate
+embedding implementation.
+
+2. Child search
+
+Search ONLY the existing:
+
+child_chunks
+
+collection.
+
+Use the existing Qdrant client.
+
+Use cosine similarity as already configured.
+
+3. Metadata filter
+
+Every retrieval search MUST filter:
+
+status == "ACTIVE"
+
+INACTIVE points must never be returned as retrieval context.
+
+Use the existing status field.
+
+4. Top-k
+
+The retrieval function must accept k as a parameter.
+
+Do not hardcode k inside the search implementation.
+
+5. Preserve result information
+
+For every Child result preserve:
+
+- point ID
+- score
+- content
+- child_id
+- parent_id
+- document_id
+- document_checksum
+- chunking_config_hash
+- parent_index
+- child_index
+- status
+- original metadata
+
+6. Parent recovery
+
+Do NOT perform another vector similarity search for Parents.
+
+Use:
+
+Child.parent_id
+        ↓
+corresponding Parent
+
+Retrieve the corresponding Parent from:
+
+parent_chunks
+
+Preserve its metadata and content.
+
+7. Result structure
+
+Create a clear typed retrieval result containing at minimum:
+
+- query
+- requested k
+- retrieved children
+- corresponding parents
+- similarity scores
+- retrieval duration
+- retrieved child count
+- retrieved parent count
+
+Use existing project typing/style where possible.
+
+8. Empty retrieval
+
+If no ACTIVE Child chunks are found:
+
+return a valid empty retrieval result.
+
+Do not raise an exception merely because no relevant context exists.
+
+This result must allow the later generation phase to take the
+"No relevant context" path.
+
+9. Missing Parent
+
+If a retrieved Child references a Parent that cannot be found:
+
+- do not fabricate Parent content
+- log a safe warning/error
+- do not expose document content or vectors in logs
+- handle the result gracefully
+
+10. Latency
+
+Measure retrieval-phase duration using perf_counter.
+
+The duration must be available in the returned retrieval result
+and suitable for the Problem 1 latency evidence.
+
+11. Logging
+
+Log safe operational information only:
+
+- retrieval started
+- k
+- number of Child results
+- number of Parent results
+- retrieval duration
+- empty-result condition if applicable
+
+NEVER log:
+
+- embeddings/vectors
+- API keys
+- full document content
+- secrets
+
+==================================================
+TESTS
+==================================================
+
+Add focused unit tests with mocked Qdrant and embedding model.
+
+Test:
+
+1. Query uses the existing BGE embedding model.
+
+2. Search targets child_chunks.
+
+3. Query vector dimension is 384.
+
+4. status == ACTIVE filter is applied.
+
+5. k is passed correctly.
+
+6. similarity scores are preserved.
+
+7. Child metadata is preserved.
+
+8. Child parent_id is used to retrieve Parent.
+
+9. Parent is retrieved from parent_chunks.
+
+10. INACTIVE Child results cannot become retrieval context.
+
+11. Empty search result returns a valid empty result.
+
+12. Missing Parent is handled safely.
+
+13. Retrieval latency is recorded.
+
+14. Child and Parent counts are recorded.
+
+15. Logs do not expose content, vectors, or secrets.
+
+16. Existing tests continue to pass.
+
+==================================================
+IMPORTANT SCOPE LIMIT
+==================================================
+
+Do NOT implement yet:
+
+- LLM generation
+- answer generation
+- citations generation
+- reranking
+- query rewriting
+- evaluation metrics
+- cost calculation
+- FastAPI endpoint
+- CLI
+- LLM judge
+
+Those belong to later phases.
+
+Use the smallest clean implementation compatible with the
+existing architecture.
+
+Run:
+
+- new retrieval unit tests
+- all existing unit tests
+
+Report:
+
+- files changed
+- implementation summary
+- tests executed
+- exact test results
+- any limitation
+
+STOP after Retrieval.
