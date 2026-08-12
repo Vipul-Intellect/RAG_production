@@ -1,99 +1,54 @@
-RAG_production/
-│
-├── configs/
-│   └── config files for project parameters
-│
-├── data/
-│   ├── pdf/
-│   │   └── local source PDFs
-│   │
-│   ├── processed/
-│   │   └── generated processed documents/chunks/metadata
-│   │
-│   ├── vector_store/
-│   │   └── local vector database files if running locally
-│   │
-│   ├── eval/
-│   │   └── golden questions, expected sources, evaluation datasets
-│   │
-│   └── cache/
-│       └── local cache files if needed
-│
-├── docs/
-│   └── architecture notes, interview notes, diagrams, decisions
-│
-├── logs/
-│   └── generated runtime logs
-│
-├── rag_app/
-│   ├── core/
-│   │   └── shared config, schemas, constants, common types
-│   │
-│   ├── ingestion/
-│   │   └── document loading using LangChain loaders
-│   │
-│   ├── chunking/
-│   │   └── parent-child chunking and metadata preservation
-│   │
-│   ├── embeddings/
-│   │   └── embedding model setup and embedding generation
-│   │
-│   ├── storage/
-│   │   └── Qdrant vector database integration and document storage
-│   │
-│   ├── retrieval/
-│   │   └── similarity search, metadata filtering, dynamic top-k
-│   │
-│   ├── reranking/
-│   │   └── cross-encoder reranking of retrieved candidates
-│   │
-│   ├── generation/
-│   │   └── prompt templates, LLM calls, grounded answer generation
-│   │
-│   ├── security/
-│   │   └── prompt-injection checks, input validation, safety rules
-│   │
-│   ├── evaluation/
-│   │   └── retrieval quality, answer faithfulness, citation evaluation
-│   │
-│   ├── observability/
-│   │   └── logging, metrics, latency tracking, debug traces
-│   │
-│   ├── cache/
-│   │   └── Redis/local cache helpers later
-│   │
-│   └── utils/
-│       └── small shared helper functions
-│
-├── scripts/
-│   └── command-line scripts for ingestion, indexing, evaluation
-│
-├── tests/
-│   ├── unit/
-│   │   └── tests for individual functions/modules
-│   │
-│   └── integration/
-│       └── tests for full pipeline behavior
-│
-├── main.py
-│   └── simple project entry point/demo runner
-│
-├── README.md
-│   └── project explanation, setup, architecture, usage, interview story
-│
-├── pyproject.toml
-│   └── project metadata and dependencies
-│
-├── requirement.txt
-│   └── pip dependency list
-│
-├── uv.lock
-│   └── uv dependency lock file
-│
-├── .python-version
-│   └── selected Python version
-│
-└── .gitignore
-    └── ignored files/folders like .env, .venv, PDFs, logs, vector DB
+# Cost-Efficient RAG Application
 
-    
+A production-oriented RAG pipeline using Qdrant Cloud, hierarchical
+Parent/Child chunking, local BGE embeddings, and Gemini for grounded
+answer generation.
+
+## Architecture
+
+PDF / HTML / MD
+→ Ingestion + metadata
+→ Parent/Child chunking
+→ BGE-small-en-v1.5 (384D)
+→ Qdrant
+→ ACTIVE top-k retrieval
+→ Parent recovery
+→ Gemini
+→ Grounded answer + citations
+
+## Key Features
+
+- PDF/HTML/MD ingestion
+- Configurable chunk size and overlap
+- Parent/Child hierarchical retrieval
+- `BAAI/bge-small-en-v1.5` embeddings (384D)
+- Qdrant Cloud with cosine similarity
+- ACTIVE/INACTIVE generation lifecycle
+- Deterministic UUID5 Point IDs
+- Idempotent re-ingestion with no duplicate vectors
+- Document checksum and chunking-config hashing
+- Metadata filtering
+- Grounded Gemini generation
+- No-context protection against hallucination
+- Retrieval and generation latency/token logging
+
+## Point Identity
+
+Parent:
+`UUID5(namespace, document_id + document_checksum + chunking_config_hash + parent_index)`
+
+Child:
+`UUID5(namespace, document_id + document_checksum + chunking_config_hash + parent_index + child_index)`
+
+The same corpus and configuration therefore produce the same Point IDs,
+allowing Qdrant upsert to remain idempotent.
+
+## Configuration
+
+Set these environment variables:
+
+```env
+QDRANT_URL=
+QDRANT_API_KEY=
+GEMINI_API_KEY=
+GEMINI_MODEL=
