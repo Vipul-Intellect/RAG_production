@@ -1,6 +1,7 @@
 langchain
 langchain-core
 langchain-community
+beautifulsoup4
 pdfplumber
 pypdf
 pymupdf
