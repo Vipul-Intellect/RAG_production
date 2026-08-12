@@ -7,6 +7,7 @@ from rag_app.generation.generator import (
     DEFAULT_GEMINI_MODEL,
     GEMINI_API_KEY_ENV_VAR,
     GROUNDING_SYSTEM_PROMPT,
+    GeminiRestClient,
     _load_gemini_client,
     generate_answer,
 )
@@ -26,6 +27,17 @@ class FakeGeminiClient:
         if self.error:
             raise self.error
         return self.response
+
+
+class FakeHTTPResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self) -> bytes:
+        return b'{"candidates":[{"content":{"parts":[{"text":"REST answer [C1]"}]}}]}'
 
 
 def _retrieval_result(parent_content: str | None = "parent policy text") -> dict[str, object]:
@@ -92,6 +104,7 @@ class GenerationTests(unittest.TestCase):
         self.assertIn("What is the policy?", call["contents"])
         self.assertEqual(result["answer"], "Grounded answer [C1]")
         self.assertFalse(result["no_context"])
+        self.assertTrue(result["citation_validation_passed"])
 
     def test_grounding_instructions_are_included(self) -> None:
         client = FakeGeminiClient()
@@ -116,6 +129,7 @@ class GenerationTests(unittest.TestCase):
         self.assertTrue(result["no_context"])
         self.assertEqual(result["citations"], [])
         self.assertEqual(result["used_context"], [])
+        self.assertFalse(result["citation_validation_passed"])
         self.assertEqual(client.calls, [])
         self.assertIn("not have enough retrieved context", result["answer"])
 
@@ -147,6 +161,57 @@ class GenerationTests(unittest.TestCase):
                     "parent_index": 0,
                 }
             ],
+        )
+
+    def test_missing_citation_format_is_handled_safely(self) -> None:
+        client = FakeGeminiClient(response=SimpleNamespace(text="Grounded answer without label"))
+
+        with self.assertLogs("rag_app", level="WARNING") as logs:
+            result = generate_answer(_retrieval_result(), gemini_client=client)
+
+        self.assertFalse(result["citation_validation_passed"])
+        self.assertEqual(result["citations"], [])
+        self.assertIn("without valid citations", result["answer"])
+        log_output = "\n".join(logs.output)
+        self.assertIn("missing valid supplied citations", log_output)
+        self.assertNotIn("parent policy text", log_output)
+        self.assertNotIn("Grounded answer without label", log_output)
+
+    def test_invalid_citation_label_is_handled_safely(self) -> None:
+        client = FakeGeminiClient(response=SimpleNamespace(text="Grounded answer [C99]"))
+
+        result = generate_answer(_retrieval_result(), gemini_client=client)
+
+        self.assertFalse(result["citation_validation_passed"])
+        self.assertEqual(result["citations"], [])
+        self.assertIn("without valid citations", result["answer"])
+
+    def test_rest_client_sends_api_key_in_header_not_url(self) -> None:
+        captured_request = {}
+
+        def fake_urlopen(http_request, timeout):
+            captured_request["url"] = http_request.full_url
+            captured_request["headers"] = dict(http_request.header_items())
+            captured_request["timeout"] = timeout
+            return FakeHTTPResponse()
+
+        client = GeminiRestClient(api_key="secret-api-key", timeout_seconds=7)
+
+        with patch("rag_app.generation.generator.request.urlopen", fake_urlopen):
+            response = client.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents="hello",
+                system_instruction="stay grounded",
+            )
+
+        headers = {key.lower(): value for key, value in captured_request["headers"].items()}
+        self.assertNotIn("secret-api-key", captured_request["url"])
+        self.assertNotIn("key=", captured_request["url"])
+        self.assertEqual(headers["x-goog-api-key"], "secret-api-key")
+        self.assertEqual(captured_request["timeout"], 7)
+        self.assertEqual(
+            response["candidates"][0]["content"]["parts"][0]["text"],
+            "REST answer [C1]",
         )
 
     def test_api_key_is_loaded_from_environment(self) -> None:

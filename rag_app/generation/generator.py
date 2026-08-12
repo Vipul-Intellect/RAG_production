@@ -1,5 +1,6 @@
 ﻿import json
 import os
+import re
 from time import perf_counter
 from typing import Any, TypedDict
 from urllib import parse, request
@@ -12,6 +13,7 @@ GEMINI_MODEL_ENV_VAR = "GEMINI_MODEL"
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_REQUEST_TIMEOUT_SECONDS = 60
+CITATION_PATTERN = re.compile(r"\[C\d+\]")
 
 GROUNDING_SYSTEM_PROMPT = """You are a grounded RAG answering system.
 Answer only from the supplied context.
@@ -48,6 +50,7 @@ class GenerationResult(TypedDict):
     model_name: str
     duration_seconds: float
     token_usage: dict[str, Any] | None
+    citation_validation_passed: bool
 
 
 class GeminiRestClient:
@@ -70,7 +73,7 @@ class GeminiRestClient:
         system_instruction: str,
     ) -> Any:
         encoded_model = parse.quote(model, safe="")
-        url = f"{self.base_url}/models/{encoded_model}:generateContent?key={parse.quote(self.api_key)}"
+        url = f"{self.base_url}/models/{encoded_model}:generateContent"
         payload = {
             "systemInstruction": {
                 "parts": [{"text": system_instruction}],
@@ -85,7 +88,10 @@ class GeminiRestClient:
         http_request = request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key,
+            },
             method="POST",
         )
         with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
@@ -190,6 +196,20 @@ def _extract_token_usage(response: Any) -> dict[str, Any] | None:
     return None
 
 
+def _citations_used_by_answer(answer: str, used_context: list[UsedContext]) -> list[Citation] | None:
+    supplied_citations = {item["label"]: item["citation"] for item in used_context}
+    cited_labels = {match.strip("[]") for match in CITATION_PATTERN.findall(answer)}
+
+    if not cited_labels or not cited_labels.issubset(supplied_citations):
+        return None
+
+    return [
+        supplied_citations[item["label"]]
+        for item in used_context
+        if item["label"] in cited_labels
+    ]
+
+
 def generate_answer(
     retrieval_result: RetrievalResult,
     gemini_client: Any | None = None,
@@ -200,7 +220,6 @@ def generate_answer(
     start_time = perf_counter()
     selected_model_name = model_name or get_gemini_model_name()
     used_context = _build_used_context(retrieval_result)
-    citations = [item["citation"] for item in used_context]
     query = retrieval_result["query"]
 
     logger.info("Generation started. model_name=%s context_count=%s", selected_model_name, len(used_context))
@@ -217,6 +236,7 @@ def generate_answer(
             "model_name": selected_model_name,
             "duration_seconds": duration_seconds,
             "token_usage": None,
+            "citation_validation_passed": False,
         }
 
     client = gemini_client or _load_gemini_client(api_key)
@@ -234,13 +254,25 @@ def generate_answer(
         logger.error("Gemini generation failed. model_name=%s reason=%s", selected_model_name, exc.__class__.__name__)
         raise RuntimeError("Gemini generation failed.") from None
 
+    citations = _citations_used_by_answer(answer, used_context)
+    citation_validation_passed = citations is not None
+    if citations is None:
+        logger.warning(
+            "Gemini answer missing valid supplied citations. model_name=%s context_count=%s",
+            selected_model_name,
+            len(used_context),
+        )
+        citations = []
+        answer = "Gemini returned an answer without valid citations to the retrieved context labels, so I cannot return it as a grounded answer."
+
     duration_seconds = perf_counter() - start_time
     logger.info(
-        "Generation completed. model_name=%s context_count=%s duration=%.3fs token_usage_available=%s",
+        "Generation completed. model_name=%s context_count=%s duration=%.3fs token_usage_available=%s citation_validation_passed=%s",
         selected_model_name,
         len(used_context),
         duration_seconds,
         token_usage is not None,
+        citation_validation_passed,
     )
 
     return {
@@ -252,4 +284,5 @@ def generate_answer(
         "model_name": selected_model_name,
         "duration_seconds": duration_seconds,
         "token_usage": token_usage,
+        "citation_validation_passed": citation_validation_passed,
     }
