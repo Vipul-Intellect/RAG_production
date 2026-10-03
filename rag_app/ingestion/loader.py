@@ -391,7 +391,7 @@ def load_documents(
         text_docs = load_non_pdf_documents(
             pdf_dir,
             "**/*.txt",
-            TextLoader,
+            TextLoader, 
             {"encoding": "utf-8"},
         )
         documents.extend(

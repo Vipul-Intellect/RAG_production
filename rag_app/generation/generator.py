@@ -10,7 +10,7 @@ from rag_app.retrieval.retriever import RetrievalResult
 
 GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
 GEMINI_MODEL_ENV_VAR = "GEMINI_MODEL"
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_REQUEST_TIMEOUT_SECONDS = 60
 CITATION_PATTERN = re.compile(r"\[C\d+\]")

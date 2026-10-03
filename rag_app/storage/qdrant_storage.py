@@ -432,16 +432,21 @@ def store_embedded_chunks(
             len(active_current_child_point_ids),
         )
 
+        batch_size = 100
         if parent_points:
-            qdrant_client.upsert(
-                collection_name=PARENT_CHUNKS_COLLECTION,
-                points=parent_points,
-            )
+            for i in range(0, len(parent_points), batch_size):
+                qdrant_client.upsert(
+                    collection_name=PARENT_CHUNKS_COLLECTION,
+                    points=parent_points[i : i + batch_size],
+                    wait=True,
+                )
         if child_points:
-            qdrant_client.upsert(
-                collection_name=CHILD_CHUNKS_COLLECTION,
-                points=child_points,
-            )
+            for i in range(0, len(child_points), batch_size):
+                qdrant_client.upsert(
+                    collection_name=CHILD_CHUNKS_COLLECTION,
+                    points=child_points[i : i + batch_size],
+                    wait=True,
+                )
 
         _verify_points_stored(qdrant_client, PARENT_CHUNKS_COLLECTION, parent_point_ids)
         _verify_points_stored(qdrant_client, CHILD_CHUNKS_COLLECTION, child_point_ids)

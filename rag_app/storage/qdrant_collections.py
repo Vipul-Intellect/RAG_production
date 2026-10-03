@@ -18,18 +18,28 @@ def ensure_qdrant_collections(client: QdrantClient | None = None) -> None:
 
     for collection_name in REQUIRED_COLLECTIONS:
         try:
-            if qdrant_client.collection_exists(collection_name):
+            if not qdrant_client.collection_exists(collection_name):
+                qdrant_client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=EXPECTED_EMBEDDING_DIMENSION,
+                        distance=QDRANT_VECTOR_DISTANCE,
+                    ),
+                )
+                logger.info("Qdrant collection created: %s", collection_name)
+            else:
                 logger.info("Qdrant collection already exists: %s", collection_name)
-                continue
 
-            qdrant_client.create_collection(
+            qdrant_client.create_payload_index(
                 collection_name=collection_name,
-                vectors_config=VectorParams(
-                    size=EXPECTED_EMBEDDING_DIMENSION,
-                    distance=QDRANT_VECTOR_DISTANCE,
-                ),
+                field_name="document_id",
+                field_schema="keyword",
             )
-            logger.info("Qdrant collection created: %s", collection_name)
+            qdrant_client.create_payload_index(
+                collection_name=collection_name,
+                field_name="status",
+                field_schema="keyword",
+            )
         except Exception as exc:
             logger.error(
                 "Qdrant collection initialization failed for %s: %s",

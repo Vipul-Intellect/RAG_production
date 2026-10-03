@@ -76,7 +76,7 @@ def _apply_common_chunk_metadata(chunk: Document, chunking_config_hash: str) -> 
             "chunking_config_hash": chunking_config_hash,
             "page_start": page_number,
             "page_end": page_number,
-            "status": "ACTIVE",
+            "status": "INACTIVE",
             "version": chunk.metadata.get("version"),
             "updated_at": chunk.metadata.get("updated_at"),
             "indexed_at": chunk.metadata.get("indexed_at"),
@@ -217,6 +217,7 @@ def create_parent_child_chunks(
     )
 
     chunk_hierarchy: list[ChunkGroup] = []
+    parent_index_counters: dict[str, int] = {}
 
     for document in documents:
         document_successful_parent_count = 0
@@ -234,16 +235,19 @@ def create_parent_child_chunks(
             _log_document_outcome(source_file, document_id, "FAILED", exc)
             continue
 
-        for parent_index, parent_chunk in enumerate(parent_chunks):
+        for parent_chunk in parent_chunks:
+            parent_index = parent_index_counters.get(document_id, 0)
+            parent_index_counters[document_id] = parent_index + 1
+
             parent_id = None
 
             try:
                 parent_id = str(uuid4())
                 parent_chunk.metadata["parent_id"] = parent_id
 
+                parent_chunk.metadata["parent_index"] = parent_index
                 # Each parent is split independently so its children remain associated with it.
                 child_chunks = child_splitter.split_documents([parent_chunk])
-                parent_chunk.metadata["parent_index"] = parent_index
                 parent_chunk.metadata["parent_checksum"] = _content_checksum(
                     parent_chunk.page_content
                 )
